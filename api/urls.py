@@ -17,3 +17,9 @@ urlpatterns = [
     path('wallet/add/', views.AddMoneyView.as_view(), name='wallet-add-money'),
     path('wallet/transactions/', views.TransactionHistoryView.as_view(), name='wallet-transactions'),
 ]
+
+urlpatterns += [
+    # Shop Owner endpoints
+    path('shop/customers/', views.CustomerRegistrationView.as_view(), name='shop-create-customer'),
+    path('shop/bills/', views.BillCreateView.as_view(), name='shop-create-bill'),
+]
