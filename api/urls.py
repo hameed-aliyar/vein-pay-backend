@@ -22,5 +22,6 @@ urlpatterns += [
     # Shop Owner endpoints
     path('shop/customers/', views.CustomerListCreateView.as_view(), name='shop-customer-list-create'),
     path('shop/bills/', views.BillCreateView.as_view(), name='shop-create-bill'),
+    path('shop/bills/<int:pk>/pay-cash/', views.BillPayCashView.as_view(), name='shop-bill-pay-cash'),
     path('pay/', views.PaymentView.as_view(), name='process-payment'),
 ]

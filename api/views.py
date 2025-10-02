@@ -166,3 +166,20 @@ class PaymentView(generics.GenericAPIView):
             return Response({"success": f"Payment of {amount} for Bill #{bill.id} successful."}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Biometric authentication failed."}, status=status.HTTP_401_UNAUTHORIZED)
+
+class BillPayCashView(generics.UpdateAPIView):
+    """
+    An endpoint for the Shop Owner to mark a bill as paid in cash.
+    """
+    queryset = Bill.objects.all()
+    permission_classes = [IsShopOwner]
+
+    def update(self, request, *args, **kwargs):
+        bill = self.get_object()
+        if bill.status != 'PENDING':
+            return Response({"error": "This bill is not pending."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        bill.status = 'PAID_CASH'
+        bill.save()
+        return Response({"success": f"Bill #{bill.id} has been marked as PAID_CASH."}, status=status.HTTP_200_OK)
+
