@@ -39,3 +39,8 @@ class BillCreationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bill
         fields = ['customer', 'amount']
+
+# Add this new serializer at the end of the file
+class PaymentSerializer(serializers.Serializer):
+    bill_id = serializers.IntegerField()
+    live_image = serializers.ImageField()

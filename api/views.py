@@ -3,11 +3,14 @@
 from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from .face_utils import compare_faces
+from django.shortcuts import get_object_or_404
 from .models import Wallet, Transaction, BiometricData, Bill, User
-from .serializers import WalletSerializer, TransactionSerializer, AddMoneySerializer
 from .permissions import IsShopOwner
 from .serializers import (
-    CustomerRegistrationSerializer, BillCreationSerializer
+    WalletSerializer, TransactionSerializer, AddMoneySerializer,
+    CustomerRegistrationSerializer, BillCreationSerializer,
+    PaymentSerializer # ADD THIS LINE
 )
 
 class WalletDetailView(generics.RetrieveAPIView):
@@ -92,3 +95,74 @@ class BillCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         # We override this method to automatically set the shop owner
         serializer.save(initiating_shop=self.request.user)
+
+
+# Add this new view at the end of the file
+class PaymentView(generics.GenericAPIView):
+    """
+    The main endpoint for processing a payment.
+    Receives a bill_id and a live_image for biometric verification.
+    """
+    serializer_class = PaymentSerializer
+    permission_classes = [IsShopOwner] # Only the shop owner can trigger a payment
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        bill_id = serializer.validated_data['bill_id']
+        live_image = serializer.validated_data['live_image']
+
+        # Get the objects from the database
+        bill = get_object_or_404(Bill, id=bill_id, status='PENDING')
+        customer = bill.customer
+        shop = bill.initiating_shop
+        
+        # --- Authentication Hub ---
+        is_authenticated = False
+        try:
+            biometric_data = customer.biometric_data
+            if biometric_data.biometric_type == 'FACE':
+                # Call our face comparison logic
+                is_authenticated = compare_faces(
+                    stored_template_path=biometric_data.face_template.path,
+                    live_image_data=live_image
+                )
+            elif biometric_data.biometric_type == 'VEIN':
+                # This is the stub for the future. It will always fail for now.
+                is_authenticated = False
+                print("Vein authentication is not yet implemented.")
+        
+        except BiometricData.DoesNotExist:
+            return Response({"error": "Customer has no registered biometric data."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # --- Process Payment if Authenticated ---
+        if is_authenticated:
+            customer_wallet = customer.wallet
+            shop_wallet = shop.wallet
+            amount = bill.amount
+
+            if customer_wallet.balance < amount:
+                return Response({"error": "Insufficient funds."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Use an atomic transaction for the money transfer
+            with transaction.atomic():
+                customer_wallet.balance -= amount
+                shop_wallet.balance += amount
+                bill.status = 'PAID_WALLET'
+                
+                # Create a transaction record
+                Transaction.objects.create(
+                    bill=bill,
+                    source_wallet=customer_wallet,
+                    destination_wallet=shop_wallet,
+                    amount=amount
+                )
+
+                customer_wallet.save()
+                shop_wallet.save()
+                bill.save()
+            
+            return Response({"success": f"Payment of {amount} for Bill #{bill.id} successful."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Biometric authentication failed."}, status=status.HTTP_401_UNAUTHORIZED)
