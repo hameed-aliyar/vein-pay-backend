@@ -1,5 +1,6 @@
 # api/serializers.py
 
+import decimal
 from rest_framework import serializers
 from .models import Wallet, Transaction, User, Bill, BiometricData
 
@@ -19,7 +20,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 class AddMoneySerializer(serializers.Serializer):
     # This serializer is not based on a model. It's for validating the input
     # when the user wants to add money.
-    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0.01)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=decimal.Decimal('0.01'))
 
 class CustomerRegistrationSerializer(serializers.ModelSerializer):
     # We add these fields to handle the biometric data upload
@@ -29,7 +30,7 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         # We define the fields the shop owner needs to provide
-        fields = ['username', 'password', 'email', 'first_name', 'last_name', 'biometric_type', 'face_template']
+        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'biometric_type', 'face_template']
         extra_kwargs = {
             'password': {'write_only': True} # Ensures password isn't sent back in the response
         }

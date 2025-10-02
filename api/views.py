@@ -3,13 +3,12 @@
 from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from .models import Wallet, Transaction
+from .models import Wallet, Transaction, BiometricData, Bill, User
 from .serializers import WalletSerializer, TransactionSerializer, AddMoneySerializer
 from .permissions import IsShopOwner
 from .serializers import (
     CustomerRegistrationSerializer, BillCreationSerializer
 )
-from .models import BiometricData
 
 class WalletDetailView(generics.RetrieveAPIView):
     """
@@ -58,30 +57,25 @@ class TransactionHistoryView(generics.ListAPIView):
             Q(source_wallet=user_wallet) | Q(destination_wallet=user_wallet)
         ).order_by('-timestamp')
     
-class CustomerRegistrationView(generics.CreateAPIView):
+class CustomerListCreateView(generics.ListCreateAPIView):
     """
-    An endpoint for the Shop Owner to create a new customer, their wallet,
-    and their biometric data all at once.
+    An endpoint for the Shop Owner to LIST all their customers (GET)
+    or CREATE a new customer (POST).
     """
+    queryset = User.objects.filter(role='CUSTOMER')
     serializer_class = CustomerRegistrationSerializer
-    permission_classes = [IsShopOwner] # Use our new custom permission
+    permission_classes = [IsShopOwner]
 
     def perform_create(self, serializer):
-        # We override this method to handle the three-part creation
+        # This is the same logic from before, it hasn't changed.
         biometric_type = serializer.validated_data.pop('biometric_type')
         face_template = serializer.validated_data.pop('face_template')
         
-        # Use a database transaction to ensure all or nothing
         with transaction.atomic():
-            # 1. Create the User
-            user = serializer.save(role='CUSTOMER') # Set role automatically
+            user = serializer.save(role='CUSTOMER')
             user.set_password(serializer.validated_data['password'])
             user.save()
-
-            # 2. Create the Wallet
             Wallet.objects.create(owner=user)
-
-            # 3. Create the BiometricData
             BiometricData.objects.create(
                 owner=user,
                 biometric_type=biometric_type,

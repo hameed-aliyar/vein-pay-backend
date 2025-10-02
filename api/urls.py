@@ -20,6 +20,6 @@ urlpatterns = [
 
 urlpatterns += [
     # Shop Owner endpoints
-    path('shop/customers/', views.CustomerRegistrationView.as_view(), name='shop-create-customer'),
+    path('shop/customers/', views.CustomerListCreateView.as_view(), name='shop-customer-list-create'),
     path('shop/bills/', views.BillCreateView.as_view(), name='shop-create-bill'),
 ]
