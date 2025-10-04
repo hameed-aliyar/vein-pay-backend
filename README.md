@@ -162,3 +162,68 @@ Response: access and refresh tokens.
   ```
 
 Response: Success or failure message.
+
+
+```mermaid
+sequenceDiagram
+    participant Customer as Customer (Flutter App)
+    participant ShopOwner as Shop Owner (React App)
+    participant Backend as Django Backend
+    participant DB as Database
+
+    Note over Customer, ShopOwner: Both login to get an Access & Refresh Token
+    Customer->>Backend: POST /api/auth/login/
+    ShopOwner->>Backend: POST /api/auth/login/
+    Backend-->>Customer: Returns Tokens
+    Backend-->>ShopOwner: Returns Tokens
+
+    Note over Backend, Customer: (Token refresh happens in the background as needed)
+    Customer->>Backend: POST /api/auth/token/refresh/
+    ShopOwner->>Backend: POST /api/auth/token/refresh/
+    Backend-->>Customer: New Access Token
+    Backend-->>ShopOwner: New Access Token
+
+    Note over Customer: Customer manages their wallet
+    Customer->>Backend: GET /api/wallet/
+    Backend-->>Customer: Wallet details
+    Customer->>Backend: POST /api/wallet/add/ (with amount)
+    Backend->>DB: UPDATE wallet balance
+    Backend-->>Customer: Updated wallet details
+    Customer->>Backend: GET /api/wallet/transactions/
+    Backend-->>Customer: List of transactions
+
+    Note over ShopOwner: Shop Owner manages their dashboard
+    ShopOwner->>Backend: POST /api/shop/customers/ (user data + image)
+    Backend->>DB: Create User, Wallet, BiometricData
+    Backend-->>ShopOwner: 201 Created
+    ShopOwner->>Backend: GET /api/shop/customers/
+    Backend-->>ShopOwner: List of all customers
+
+    ShopOwner->>Backend: POST /api/shop/bills/ (with customer_id, amount)
+    Backend->>DB: Create Bill
+    Backend-->>ShopOwner: Bill Created
+    ShopOwner->>Backend: GET /api/shop/bills/
+    Backend-->>ShopOwner: List of all bills
+
+    Note over ShopOwner, Backend: Shop Owner chooses a payment method for a bill
+
+    alt Pay with Cash
+        ShopOwner->>Backend: PUT /api/shop/bills/X/pay-cash/
+        Backend->>DB: UPDATE bill status to 'PAID_CASH'
+        Backend-->>ShopOwner: Success message
+    end
+
+    alt Pay with Biometrics
+        Note over ShopOwner: Captures live biometric via Webcam/Pi
+        ShopOwner->>Backend: POST /api/pay/ (with bill_id, live_image)
+        Backend->>DB: Fetch stored biometric template for user
+        DB-->>Backend: Template data
+        
+        Note over Backend: Compares biometrics... (Match is found)
+        
+        Backend->>DB: Perform atomic wallet transfer (Debit/Credit)
+        DB-->>Backend: Transaction OK
+        Backend-->>ShopOwner: 200 OK (Payment Successful)
+    end
+```
+
