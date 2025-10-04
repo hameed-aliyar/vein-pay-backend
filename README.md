@@ -163,6 +163,8 @@ Response: access and refresh tokens.
 
 Response: Success or failure message.
 
+---
+
 ## Sequence Diagram
 
 ```mermaid
