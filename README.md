@@ -176,57 +176,128 @@ sequenceDiagram
 
     Note over Customer, ShopOwner: Both login to get an Access & Refresh Token
     Customer->>Backend: POST /api/auth/login/
-    ShopOwner->>Backend: POST /api/auth/login/
+    activate Backend
+    Backend->>DB: Verify credentials
+    activate DB
+    DB-->>Backend: User OK
+    deactivate DB
     Backend-->>Customer: Returns Tokens
-    Backend-->>ShopOwner: Returns Tokens
+    deactivate Backend
 
-    Note over Backend, Customer: (Token refresh happens in the background as needed)
+    ShopOwner->>Backend: POST /api/auth/login/
+    activate Backend
+    Backend->>DB: Verify credentials
+    activate DB
+    DB-->>Backend: Shop Owner OK
+    deactivate DB
+    Backend-->>ShopOwner: Returns Tokens
+    deactivate Backend
+
+    Note over Backend, Customer: (Token refresh happens as needed)
     Customer->>Backend: POST /api/auth/token/refresh/
-    ShopOwner->>Backend: POST /api/auth/token/refresh/
+    activate Backend
+    Backend->>DB: Verify refresh token
+    activate DB
+    DB-->>Backend: Token OK
+    deactivate DB
     Backend-->>Customer: New Access Token
-    Backend-->>ShopOwner: New Access Token
+    deactivate Backend
 
     Note over Customer: Customer manages their wallet
     Customer->>Backend: GET /api/wallet/
+    activate Backend
+    Backend->>DB: SELECT wallet for user
+    activate DB
+    DB-->>Backend: Wallet data
+    deactivate DB
     Backend-->>Customer: Wallet details
+    deactivate Backend
+
     Customer->>Backend: POST /api/wallet/add/ (with amount)
+    activate Backend
     Backend->>DB: UPDATE wallet balance
+    activate DB
+    DB-->>Backend: Update OK
+    deactivate DB
     Backend-->>Customer: Updated wallet details
+    deactivate Backend
+
     Customer->>Backend: GET /api/wallet/transactions/
+    activate Backend
+    Backend->>DB: SELECT transactions for user
+    activate DB
+    DB-->>Backend: Transaction list
+    deactivate DB
     Backend-->>Customer: List of transactions
+    deactivate Backend
 
     Note over ShopOwner: Shop Owner manages their dashboard
     ShopOwner->>Backend: POST /api/shop/customers/ (user data + image)
-    Backend->>DB: Create User, Wallet, BiometricData
+    activate Backend
+    Backend->>DB: CREATE User, Wallet, BiometricData
+    activate DB
+    DB-->>Backend: Creation OK
+    deactivate DB
     Backend-->>ShopOwner: 201 Created
-    ShopOwner->>Backend: GET /api/shop/customers/
-    Backend-->>ShopOwner: List of all customers
+    deactivate Backend
 
-    ShopOwner->>Backend: POST /api/shop/bills/ (with customer_id, amount)
-    Backend->>DB: Create Bill
+    ShopOwner->>Backend: GET /api/shop/customers/
+    activate Backend
+    Backend->>DB: SELECT all customers
+    activate DB
+    DB-->>Backend: Customer List
+    deactivate DB
+    Backend-->>ShopOwner: List of all customers
+    deactivate Backend
+
+    ShopOwner->>Backend: POST /api/shop/bills/ (with data)
+    activate Backend
+    Backend->>DB: CREATE Bill
+    activate DB
+    DB-->>Backend: Bill Created
+    deactivate DB
     Backend-->>ShopOwner: Bill Created
+    deactivate Backend
+
     ShopOwner->>Backend: GET /api/shop/bills/
+    activate Backend
+    Backend->>DB: SELECT all bills for shop
+    activate DB
+    DB-->>Backend: Bill List
+    deactivate DB
     Backend-->>ShopOwner: List of all bills
+    deactivate Backend
 
     Note over ShopOwner, Backend: Shop Owner chooses a payment method for a bill
 
     alt Pay with Cash
         ShopOwner->>Backend: PUT /api/shop/bills/X/pay-cash/
+        activate Backend
         Backend->>DB: UPDATE bill status to 'PAID_CASH'
+        activate DB
+        DB-->>Backend: Update OK
+        deactivate DB
         Backend-->>ShopOwner: Success message
+        deactivate Backend
     end
 
     alt Pay with Biometrics
         Note over ShopOwner: Captures live biometric via Webcam/Pi
         ShopOwner->>Backend: POST /api/pay/ (with bill_id, live_image)
+        activate Backend
         Backend->>DB: Fetch stored biometric template for user
+        activate DB
         DB-->>Backend: Template data
+        deactivate DB
         
         Note over Backend: Compares biometrics... (Match is found)
         
         Backend->>DB: Perform atomic wallet transfer (Debit/Credit)
+        activate DB
         DB-->>Backend: Transaction OK
+        deactivate DB
         Backend-->>ShopOwner: 200 OK (Payment Successful)
+        deactivate Backend
     end
 ```
 
