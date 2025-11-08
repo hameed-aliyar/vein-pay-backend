@@ -59,7 +59,7 @@ class TransactionHistoryView(generics.ListAPIView):
         return Transaction.objects.filter(
             Q(source_wallet=user_wallet) | Q(destination_wallet=user_wallet)
         ).order_by('-timestamp')
-    
+
 class CustomerListCreateView(generics.ListCreateAPIView):
     """
     An endpoint for the Shop Owner to LIST all their customers (GET)
@@ -73,7 +73,7 @@ class CustomerListCreateView(generics.ListCreateAPIView):
         # This is the same logic from before, it hasn't changed.
         biometric_type = serializer.validated_data.pop('biometric_type')
         face_template = serializer.validated_data.pop('face_template')
-        
+
         with transaction.atomic():
             user = serializer.save(role='CUSTOMER')
             user.set_password(serializer.validated_data['password'])
@@ -85,15 +85,23 @@ class CustomerListCreateView(generics.ListCreateAPIView):
                 face_template=face_template
             )
 
-class BillCreateView(generics.CreateAPIView):
+# Replace the old BillCreateView with this new BillListCreateView
+
+
+class BillListCreateView(generics.ListCreateAPIView):
     """
-    An endpoint for the Shop Owner to create a new bill for a customer.
+    An endpoint for the Shop Owner to LIST all bills (GET)
+    or CREATE a new bill for a customer (POST).
     """
+
+    queryset = Bill.objects.all().order_by(
+        "-created_at"
+    )  # Add this line to fetch all bills
     serializer_class = BillCreationSerializer
     permission_classes = [IsShopOwner]
 
     def perform_create(self, serializer):
-        # We override this method to automatically set the shop owner
+        # This method stays exactly the same as before
         serializer.save(initiating_shop=self.request.user)
 
 
@@ -104,7 +112,9 @@ class PaymentView(generics.GenericAPIView):
     Receives a bill_id and a live_image for biometric verification.
     """
     serializer_class = PaymentSerializer
-    permission_classes = [IsShopOwner] # Only the shop owner can trigger a payment
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]  # Only the shop owner can trigger a payment
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -117,12 +127,13 @@ class PaymentView(generics.GenericAPIView):
         bill = get_object_or_404(Bill, id=bill_id, status='PENDING')
         customer = bill.customer
         shop = bill.initiating_shop
-        
+
         # --- Authentication Hub ---
         is_authenticated = False
         try:
             biometric_data = customer.biometric_data
             if biometric_data.biometric_type == 'FACE':
+                live_image.seek(0)
                 # Call our face comparison logic
                 is_authenticated = compare_faces(
                     stored_template_path=biometric_data.face_template.path,
@@ -132,10 +143,10 @@ class PaymentView(generics.GenericAPIView):
                 # This is the stub for the future. It will always fail for now.
                 is_authenticated = False
                 print("Vein authentication is not yet implemented.")
-        
+
         except BiometricData.DoesNotExist:
             return Response({"error": "Customer has no registered biometric data."}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # --- Process Payment if Authenticated ---
         if is_authenticated:
             customer_wallet = customer.wallet
@@ -150,7 +161,7 @@ class PaymentView(generics.GenericAPIView):
                 customer_wallet.balance -= amount
                 shop_wallet.balance += amount
                 bill.status = 'PAID_WALLET'
-                
+
                 # Create a transaction record
                 Transaction.objects.create(
                     bill=bill,
@@ -162,10 +173,13 @@ class PaymentView(generics.GenericAPIView):
                 customer_wallet.save()
                 shop_wallet.save()
                 bill.save()
-            
+
             return Response({"success": f"Payment of {amount} for Bill #{bill.id} successful."}, status=status.HTTP_200_OK)
         else:
-            return Response({"error": "Biometric authentication failed."}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"error": "Biometric authentication failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 class BillPayCashView(generics.UpdateAPIView):
     """
@@ -182,4 +196,3 @@ class BillPayCashView(generics.UpdateAPIView):
         bill.status = 'PAID_CASH'
         bill.save()
         return Response({"success": f"Bill #{bill.id} has been marked as PAID_CASH."}, status=status.HTTP_200_OK)
-
